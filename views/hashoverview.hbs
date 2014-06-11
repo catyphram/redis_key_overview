@@ -1,0 +1,79 @@
+<html>
+	</head>
+		<title>Hash Overview</title>
+		<link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+		<style type="text/css">
+			.overflow-dotted {
+				white-space: nowrap;
+				text-overflow: ellipsis;
+				max-width: 400px;
+				display: block;
+				overflow: hidden
+			}
+		</style>
+	</head>
+	<body>
+		<div class="jumbotron">
+			<div class="container">
+				<div class="page-header">
+					<h1><a href="/static/keyoverview.html" style="color: #333333;">Redis Key Overview</a> <small>Top {{topcount}} Hashes</small></h1>
+				</div>
+				<a href="/static/keyoverview.html" class="btn btn-primary">Key Overview</a>
+				<table class="table table-striped table-hover">
+					<thead>
+						<tr>
+							<th></th>
+							<th style="text-align: center;" colspan="3"><b>Ordered by Size</b></th>
+							<th style="text-align: center;" colspan="3"><b>Ordered by Number of Members</b></th>
+						</tr>
+						<tr>
+							<td></td>
+							<td class="container-fluid" style="text-align: center;" colspan="3">
+								<div class="row">
+									<div class="col-lg-6">
+										<span style="float:right">Total Size: <b>{{totalsize}}</b></span>
+									</div>
+									<div class="col-lg-6">
+										<span style="float:left">Ø Size: <b>{{avgsize}}</b></span>
+									</div>
+								</div>
+							</td>
+							<td class="container-fluid" style="text-align: center;" colspan="3">
+								<div class="row">
+									<div class="col-lg-6">
+										<span style="float:right">Total Members: <b>{{totalamount}}</b></span>
+									</div>
+									<div class="col-lg-6">
+										<span style="float:left">Ø Members: <b>{{avgamount}}</b></span>
+									</div>
+								</div>
+							</td>
+						</tr>
+						<tr>
+							<th><b>#</b></th>
+							<th><b>Key</b></th>
+							<th style="text-align: right; padding-right: 20px;"><b>Size</b></th>
+							<th style="text-align: right; padding-right: 20px;">%</th>
+							<th style="padding-left: 20px;"><b>Key</b></th>
+							<th style="text-align: right; padding-right: 20px;"><b>Members</b></th>
+							<th style="text-align: right;"><b>%</b></th>
+						</tr>
+					</thead>
+					<tbody>
+						{{#each types}}
+						<tr>
+							<td>{{index_1 @index}}</td>
+							<td><div class="overflow-dotted">{{size_key}}</div></td>
+							<td style="text-align: right; white-space: nowrap; padding-right: 20px;">{{size_size}}</td>
+							<td style="text-align: right; padding-right: 20px;">{{size_percent}}</td>
+							<td style="padding-left: 20px;"><div class="overflow-dotted">{{count_key}}</div></td>
+							<td style="text-align: right; padding-right: 20px;">{{count_membercount}}</td>
+							<td style="text-align: right;">{{amount_percent}}</td>
+						</tr>
+						{{/each}}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</body>
+</html>
