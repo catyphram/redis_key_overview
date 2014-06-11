@@ -3,12 +3,6 @@ bodyparser = require('body-parser')
 redis = require( 'redis' )
 hbs = require('hbs')
 
-hbs.registerHelper "index_1", ( index ) =>
-	return index + 1
-
-hbs.registerHelper "lowercase", ( string ) =>
-	return string.toLowerCase()
-
 app = express()
 
 rediscli = redis.createClient()
