@@ -1,6 +1,6 @@
 {
   "name": "rediskeyoverview",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Overview over used redis keys and the needed memoryspace.",
   "main": "index.js",
   "scripts": {

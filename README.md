@@ -1,5 +1,6 @@
 # Redis Key Overview
 ====================
+
 Generates an overview of the keys and their used memory of a Redis Database.
 
 ## Installation
@@ -63,3 +64,7 @@ The final Views/HTML-Pages get returned by the staticPath of express (like `/sta
 * The values will be summed up and the top keys will be stored.  
 * After handling all keys the information get written into html files.  
 * And that's it.
+
+## insert.js / insertstrings.js
+
+* generates and inserts some test keys into the database
