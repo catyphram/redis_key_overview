@@ -5,9 +5,14 @@ Generates an overview of the keys and their used memory of a Redis Database.
 
 ## Installation
 ---------------
-Installing the module:
+Installing the module via npm:
 
-	npm install redis_key_overview
+	npm install redis_key_overview && cd node_modules/redis_key_overview
+
+or
+
+	git clone https://github.com/catyphram/redis_key_overview/
+	
 	
 Start Redis (if not already running) with `redis-server`. If you want to use an example database, just copy the included `dump.rdb` into a directory and (re)-start Redis in this directory.
 
@@ -15,7 +20,7 @@ Start Redis (if not already running) with `redis-server`. If you want to use an 
 ## Usage
 --------
 
-Since the source files are written in CoffeeScript you first need to compile them into JavaScript files:
+Since the source files are written in CoffeeScript you first need to compile them into JavaScript files (only necessary if you manually change the .coffee files, since the compiled .js files are supplied with the module):
 
 	grunt build
 

@@ -1,2 +1,5 @@
 node_modules/
 .DS_Store
+keys.txt
+static/
+!static/index.html
