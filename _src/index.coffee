@@ -2,6 +2,7 @@ express = require( 'express' )
 bodyparser = require('body-parser')
 redis = require( 'redis' )
 hbs = require('hbs')
+ovOptions = require './config.json'
 
 app = express()
 

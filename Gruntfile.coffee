@@ -18,6 +18,12 @@ module.exports = ( grunt )->
 			 	src: ['**/*.coffee']
 			 	dest: 'modules'
 			 	ext: '.js'
+			static:
+			 	expand: true
+			 	cwd: '_src_static/'
+			 	src: ['**/*.coffee']
+			 	dest: 'static'
+			 	ext: '.js'
 
 	grunt.loadNpmTasks('grunt-contrib-coffee')
 	grunt.loadNpmTasks('grunt-contrib-watch')

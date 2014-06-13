@@ -1,5 +1,5 @@
 (function() {
-  var app, bodyparser, express, hbs, ov, overview, redis, rediscli;
+  var app, bodyparser, express, hbs, ov, ovOptions, overview, redis, rediscli;
 
   express = require('express');
 
@@ -8,6 +8,8 @@
   redis = require('redis');
 
   hbs = require('hbs');
+
+  ovOptions = require('./config.json');
 
   app = express();
 
