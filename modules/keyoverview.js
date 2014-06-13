@@ -302,7 +302,9 @@
 
     Overview.prototype._packKeys = function(key, last) {
       if (last) {
-        this._getKeySizeAndType(this._multiKeys.key, false);
+        if (this._multiKeys.key.length > 0) {
+          this._getKeySizeAndType(this._multiKeys.key, false);
+        }
         this._multiKeys.key = [];
         this._getKeySizeAndType(null, true);
         return;

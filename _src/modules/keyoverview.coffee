@@ -224,7 +224,7 @@ module.exports = class Overview extends eventemitter
 		
 		if last
 			# Pass the remaining keys
-			@_getKeySizeAndType @_multiKeys.key, false
+			@_getKeySizeAndType @_multiKeys.key, false if @_multiKeys.key.length > 0
 			@_multiKeys.key = []
 			@_getKeySizeAndType null, true
 			return
@@ -242,7 +242,6 @@ module.exports = class Overview extends eventemitter
 		if last
 			@lastKeySizeAndTypeRequest = true
 			return
-
 		_commands = []
 		_collection = []
 		for _key in keys
