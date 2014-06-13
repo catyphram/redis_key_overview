@@ -1,5 +1,7 @@
 # Redis Key Overview
 
+**Generates and displays an overview of all keys in a redis database.**
+
 ## Key Overview
 
 ![overview of all keys](./imgs/keyoverview.png?raw=true "overview of all keys")
@@ -7,8 +9,6 @@
 ## Detailoverview
 
 ![detailed overview of a key type](./imgs/detailoverview.png?raw=true "detailoverview of key types")
-
-Generates an overview of the keys and their used memory of a Redis Database.
 
 ## Installation
 
