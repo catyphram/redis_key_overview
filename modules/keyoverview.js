@@ -24,7 +24,7 @@
     function Overview(express, redis, options) {
       this.express = express;
       this.redis = redis;
-      this.options = options != null ? options : {};
+      this.options = options;
       this._formatByte = __bind(this._formatByte, this);
       this._parseKeysForTemplate = __bind(this._parseKeysForTemplate, this);
       this._parseDataForTemplate = __bind(this._parseDataForTemplate, this);
@@ -55,15 +55,6 @@
     }
 
     Overview.prototype.initialize = function() {
-      if (!this.options.keyfilename) {
-        this.options.keyfilename = "keys.txt";
-      }
-      if (!this.options.multiLength) {
-        this.options.multiLength = 1000;
-      }
-      if (!this.options.topcount) {
-        this.options.topcount = 50;
-      }
       this.on("initStatusUpdate", (function(_this) {
         return function(statusmsg) {
           _this.initStatus.status.push({

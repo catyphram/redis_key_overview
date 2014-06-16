@@ -8,7 +8,7 @@ sd = new StringDecoder()
 
 module.exports = class Overview extends eventemitter
 
-	constructor: ( @express, @redis, @options = {} ) ->
+	constructor: ( @express, @redis, @options ) ->
 		@initialize()
 		
 		# HBS Helper for index starting by 1
@@ -23,15 +23,6 @@ module.exports = class Overview extends eventemitter
 		return
 
 	initialize: =>
-		
-		# Set Options if not already set
-		# The Name of the local file the keys are written to
-		@options.keyfilename = "keys.txt" if not @options.keyfilename
-		# Number of Commands packed into a Multi
-		@options.multiLength = 1000 if not @options.multiLength
-		# Number of Keys listed in the Views
-		@options.topcount = 50 if not @options.topcount
-
 
 		# Used to add statusmsgs to the queue
 		@on "initStatusUpdate", ( statusmsg ) =>

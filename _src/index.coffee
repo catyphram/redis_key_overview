@@ -3,10 +3,30 @@ bodyparser = require('body-parser')
 redis = require( 'redis' )
 hbs = require('hbs')
 ovOptions = require './config.json'
+extend = require 'extend'
+
+_defaults = {
+	"redis": {
+		#"host": undefined,
+		#"port": undefined
+	},
+	"server": {
+		"port": 3000
+	},
+	"keyoverview": {
+		"keyfilename": "keys.txt",
+		"multiLength": 1000,
+		"topcount": 50
+	}
+}
+
+
+extend true, _defaults, ovOptions
+console.log _defaults
 
 app = express()
 
-rediscli = redis.createClient()
+rediscli = redis.createClient _defaults.redis.port, _defaults.redis.host
 
 rediscli.on( "error", ( err ) ->
 	console.log err
@@ -33,7 +53,7 @@ app.use( ( req, res, next ) ->
 )
 
 overview = require './modules/keyoverview'
-ov = new overview( app, rediscli )
+ov = new overview( app, rediscli, _defaults.keyoverview )
 
 
-app.listen( 3000 ) 
+app.listen( _defaults.server.port ) 

@@ -3,3 +3,4 @@ node_modules/
 keys.txt
 static/html/*
 !static/html/init.html
+config.json

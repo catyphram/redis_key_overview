@@ -44,6 +44,37 @@ Node will now start a web service at port 3000.
 * The generating will take a bit depending on the number of keys in the database.  
 * After the files are generated you click the appearing button and will be lead to an overview of your keys with links to the specific datatypes.
 
+## Config.json
+
+You can override the default options in the config.json file. The config.json needs to be the same structure as the default object below:
+
+```
+{
+	"redis": {
+		"host": undefined,
+		"port": undefined
+	},
+	"server": {
+		"port": 3000
+	},
+	"keyoverview": {
+		"keyfilename": "keys.txt",
+		"multiLength": 1000,
+		"topcount": 50
+	}
+}
+```
+
+* redis ( if undefined, options will be taken from the node_redis defaults )
+	* host: hostname/ip of the redis server (default from node_redis: `127.0.0.1` aka `localhost`)
+	* port: port of the redis server ( default from node_redis: `6379` )
+* server
+	* port: port on which this application will listen
+* keyoverview
+	* keyfilename: name of the local file created during initialization with all redis keys
+	* multilength: Number of Commands sent within a multi (maybe an other value will increase the performance)
+	* topcount: Number of rows listed in the ordered detail views
+
 
 ## keyoverview.js
 

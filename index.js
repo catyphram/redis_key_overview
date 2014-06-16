@@ -1,5 +1,5 @@
 (function() {
-  var app, bodyparser, express, hbs, ov, ovOptions, overview, redis, rediscli;
+  var app, bodyparser, express, extend, hbs, ov, ovOptions, overview, redis, rediscli, _defaults;
 
   express = require('express');
 
@@ -11,9 +11,27 @@
 
   ovOptions = require('./config.json');
 
+  extend = require('extend');
+
+  _defaults = {
+    "redis": {},
+    "server": {
+      "port": 3000
+    },
+    "keyoverview": {
+      "keyfilename": "keys.txt",
+      "multiLength": 1000,
+      "topcount": 50
+    }
+  };
+
+  extend(true, _defaults, ovOptions);
+
+  console.log(_defaults);
+
   app = express();
 
-  rediscli = redis.createClient();
+  rediscli = redis.createClient(_defaults.redis.port, _defaults.redis.host);
 
   rediscli.on("error", function(err) {
     console.log(err);
@@ -38,8 +56,8 @@
 
   overview = require('./modules/keyoverview');
 
-  ov = new overview(app, rediscli);
+  ov = new overview(app, rediscli, _defaults.keyoverview);
 
-  app.listen(3000);
+  app.listen(_defaults.server.port);
 
 }).call(this);

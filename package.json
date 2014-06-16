@@ -18,7 +18,8 @@
     "hbs": "^2.6.0",
     "lodash": "^2.4.1",
     "hiredis": "^0.1.16",
-    "randomstring": "^1.0.3"
+    "randomstring": "^1.0.3",
+    "extend": "^1.2.1"
   },
   "repository": {
     "type": "git",
