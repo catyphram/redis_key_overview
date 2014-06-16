@@ -22,7 +22,6 @@ _defaults = {
 
 
 extend true, _defaults, ovOptions
-console.log _defaults
 
 app = express()
 

@@ -27,8 +27,6 @@
 
   extend(true, _defaults, ovOptions);
 
-  console.log(_defaults);
-
   app = express();
 
   rediscli = redis.createClient(_defaults.redis.port, _defaults.redis.host);

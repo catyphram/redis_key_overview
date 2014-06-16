@@ -154,7 +154,7 @@
     Overview.prototype.generateRoutes = function() {
       this.express.get('/generate', (function(_this) {
         return function(req, res) {
-          var child, _ref;
+          var _ref;
           if ((_ref = _this.initStatus) != null ? _ref.initializing : void 0) {
             res.send(423, "Currently Initializing");
             return;
@@ -163,13 +163,12 @@
           _this.initStatus.initializing = true;
           _this.emit('initStatusUpdate', 'INITIALIZING');
           _this.emit('initStatusUpdate', "Getting all keys from the redis server and save them into a local file.");
-          child = exec("echo \"keys *\" | redis-cli --raw | sed '/(*\.*)/d' > " + _this.options.keyfilename, function(error, stdout, stderr) {
-            var child2;
+          exec("echo \"keys *\" | redis-cli --raw | sed '/(*\.*)/d' | sed -e /^\s*$/d > " + _this.options.keyfilename, function(error, stdout, stderr) {
             if (error != null) {
               console.log('exec error: ' + error);
             }
             _this.emit('initStatusUpdate', "Finished writing keys into local file.");
-            child2 = exec("cat " + _this.options.keyfilename + " | wc -l", function(error2, stdout2, stderr2) {
+            exec("cat " + _this.options.keyfilename + " | wc -l", function(error2, stdout2, stderr2) {
               if (error2 != null) {
                 console.log('exec error: ' + error2);
               }
@@ -244,8 +243,17 @@
         };
       })(this));
       this.express.get('/:type', (function(_this) {
+        return function(req, res, next) {
+          return res.sendfile("./static/html/" + req.params.type + "overview.html", function(error) {
+            if (error != null) {
+              next();
+            }
+          });
+        };
+      })(this));
+      this.express.all('*', (function(_this) {
         return function(req, res) {
-          res.sendfile("./static/html/" + req.params.type + "overview.html");
+          res.send(404, "File not found");
         };
       })(this));
     };
@@ -311,7 +319,13 @@
     Overview.prototype._getKeySizeAndType = function(keys, last) {
       var _collection, _commands, _i, _key, _len;
       if (last) {
-        this.lastKeySizeAndTypeRequest = true;
+        if (this.totalKeyAmount <= this._timesRequested * this.options.multiLength) {
+          this.lastKeySizeAndTypeRequest = false;
+          this._timesRequested = 0;
+          this._diffKeysAndSummarize(null, true);
+        } else {
+          this.lastKeySizeAndTypeRequest = true;
+        }
         return;
       }
       _commands = [];
@@ -399,7 +413,11 @@
     Overview.prototype._getMemberCount = function(keys, last) {
       var _collection, _command, _commands, _i, _key, _len;
       if (last) {
-        this.memberRequests.last = true;
+        if (this.memberRequests.remaining === 0) {
+          this._getTopMembers(null, null, true);
+        } else {
+          this.memberRequests.last = true;
+        }
         return;
       }
       _command = this._memberCountCommands[keys[0].type];
@@ -484,51 +502,83 @@
     };
 
     Overview.prototype._createOverview = function() {
+      var type, val, _ref;
       this._templateDataParsed = this._parseDataForTemplate();
-      fs.readFile("./views/typeoverview.hbs", {
-        encoding: "utf-8"
-      }, (function(_this) {
-        return function(error, data) {
-          var k, v, _fn, _ref, _template;
-          if (error != null) {
-            console.log(error);
-          }
-          _template = hbs.handlebars.compile(data);
-          _ref = _this._templateDataParsed;
-          _fn = function(k) {
-            fs.writeFile("./static/html/" + k + "overview.html", _template(v), function() {
-              console.log("" + k + " file ready");
-            });
+      _ref = this._typePlurals;
+      for (type in _ref) {
+        val = _ref[type];
+        if (this._templateDataParsed[type] == null) {
+          fs.unlink("./static/html/" + type + "overview.html", function(delerror) {
+            if ((delerror != null) && delerror.errno !== 34) {
+              console.log(delerror);
+            }
+          });
+        }
+      }
+      if (Object.keys(this._templateDataParsed).length !== 0) {
+        fs.readFile("./views/typeoverview.hbs", {
+          encoding: "utf-8"
+        }, (function(_this) {
+          return function(error, data) {
+            var k, v, _fn, _ref1, _template;
+            if (error != null) {
+              console.log(error);
+            }
+            _template = hbs.handlebars.compile(data);
+            _ref1 = _this._templateDataParsed;
+            _fn = function(k) {
+              fs.writeFile("./static/html/" + k + "overview.html", _template(v), function() {
+                console.log("" + k + " file ready");
+              });
+            };
+            for (k in _ref1) {
+              v = _ref1[k];
+              _fn(k);
+            }
           };
-          for (k in _ref) {
-            v = _ref[k];
-            _fn(k);
-          }
-        };
-      })(this));
+        })(this));
+      } else {
+        console.log("No types to create views.");
+      }
     };
 
     Overview.prototype._createKeyOverview = function() {
-      var _keytemplatedata;
+      var _finCreating, _keytemplatedata;
       this.emit('initStatusUpdate', "Starting to parse information into html pages.");
-      _keytemplatedata = this._parseKeysForTemplate(this._templateData.key);
-      fs.readFile("./views/keyoverview.hbs", {
-        encoding: "utf-8"
-      }, (function(_this) {
-        return function(error, data) {
-          var _template;
-          if (error != null) {
-            console.log(error);
-          }
-          _template = hbs.handlebars.compile(data);
-          fs.writeFile("./static/html/keyoverview.html", _template(_keytemplatedata), function() {
-            console.log("key file ready");
-            _this.initStatus.initializing = false;
-            _this.emit('initStatusUpdate', "Finished creating html files.");
-            _this.emit('initStatusUpdate', "FIN");
-          });
+      _finCreating = (function(_this) {
+        return function() {
+          console.log("key file ready");
+          _this.initStatus.initializing = false;
+          _this.emit('initStatusUpdate', "Finished creating html files.");
+          _this.emit('initStatusUpdate', "FIN");
         };
-      })(this));
+      })(this);
+      if (Object.keys(this._templateData.key.types).length !== 0) {
+        _keytemplatedata = this._parseKeysForTemplate();
+        fs.readFile("./views/keyoverview.hbs", {
+          encoding: "utf-8"
+        }, (function(_this) {
+          return function(error, data) {
+            var _template;
+            if (error != null) {
+              console.log(error);
+            }
+            _template = hbs.handlebars.compile(data);
+            fs.writeFile("./static/html/keyoverview.html", _template(_keytemplatedata), function() {
+              _finCreating();
+            });
+          };
+        })(this));
+      } else {
+        exec("cp ./views/keyoverview_empty.html ./static/html/keyoverview.html", (function(_this) {
+          return function(error, stdout, stderr) {
+            if (error != null) {
+              console.log(error);
+            }
+            _finCreating();
+          };
+        })(this));
+      }
     };
 
     Overview.prototype._parseDataForTemplate = function() {
@@ -537,7 +587,7 @@
       _ref = this._templateData;
       for (k in _ref) {
         v = _ref[k];
-        if (k === "key") {
+        if (k === "key" || v.size.length === 0) {
           continue;
         }
         _templateDataParsed[k] = {

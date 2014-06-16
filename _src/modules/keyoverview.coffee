@@ -75,12 +75,12 @@ module.exports = class Overview extends eventemitter
 			@emit 'initStatusUpdate', "Getting all keys from the redis server and save them into a local file."
 			
 			# Writing all keys into local file
-			child = exec "echo \"keys *\" | redis-cli --raw | sed '/(*\.*)/d' > #{@options.keyfilename}", ( error, stdout, stderr ) =>
+			exec "echo \"keys *\" | redis-cli --raw | sed '/(*\.*)/d' | sed -e /^\s*$/d > #{@options.keyfilename}", ( error, stdout, stderr ) =>
 				if error?
 					console.log 'exec error: ' + error
 				@emit 'initStatusUpdate', "Finished writing keys into local file."
 				# Getting number of keys
-				child2 = exec "cat #{@options.keyfilename} | wc -l", ( error2, stdout2, stderr2 ) =>
+				exec "cat #{@options.keyfilename} | wc -l", ( error2, stdout2, stderr2 ) =>
 					if error2?
 						console.log 'exec error: ' + error2
 					@totalKeyAmount = parseInt( stdout2 )
@@ -160,9 +160,16 @@ module.exports = class Overview extends eventemitter
 			
 			return
 
-		@express.get '/:type', ( req, res ) =>
+		@express.get '/:type', ( req, res, next ) =>
 
-			res.sendfile "./static/html/#{req.params.type}overview.html"
+			res.sendfile "./static/html/#{req.params.type}overview.html", ( error ) ->
+				if error?
+					next()
+				return
+
+		@express.all '*', ( req, res ) =>
+			# A bit nicer please
+			res.send 404, "File not found"
 			return
 
 		return
@@ -231,7 +238,13 @@ module.exports = class Overview extends eventemitter
 	_getKeySizeAndType: ( keys, last ) =>
 
 		if last
-			@lastKeySizeAndTypeRequest = true
+			if @totalKeyAmount <= @_timesRequested * @options.multiLength
+				# finished requesting
+				@lastKeySizeAndTypeRequest = false
+				@_timesRequested = 0
+				@_diffKeysAndSummarize null, true
+			else
+				@lastKeySizeAndTypeRequest = true
 			return
 		_commands = []
 		_collection = []
@@ -303,7 +316,10 @@ module.exports = class Overview extends eventemitter
 	_getMemberCount: ( keys, last ) =>
 		
 		if last
-			@memberRequests.last = true
+			if @memberRequests.remaining is 0
+				@_getTopMembers null, null, true
+			else
+				@memberRequests.last = true
 			return
 
 		_command = @_memberCountCommands[keys[0].type]
@@ -365,40 +381,57 @@ module.exports = class Overview extends eventemitter
 	_createOverview: =>
 
 		@_templateDataParsed = @_parseDataForTemplate()
-
-		fs.readFile "./views/typeoverview.hbs", { encoding: "utf-8" } ,( error, data ) =>
-			console.log error if error?
-
-			_template = hbs.handlebars.compile data
-
-			for k, v of @_templateDataParsed
-
-				do ( k ) =>
-					fs.writeFile "./static/html/#{k}overview.html", _template( v ), ->
-						console.log "#{k} file ready"
-						return
+		
+		for type, val of @_typePlurals
+			if not @_templateDataParsed[type]?
+				fs.unlink "./static/html/#{type}overview.html", ( delerror ) ->
+					console.log delerror if delerror? and delerror.errno isnt 34
 					return
-			return
+
+		if Object.keys( @_templateDataParsed ).length isnt 0
+			fs.readFile "./views/typeoverview.hbs", { encoding: "utf-8" } ,( error, data ) =>
+				console.log error if error?
+
+				_template = hbs.handlebars.compile data
+
+				for k, v of @_templateDataParsed
+					do ( k ) ->
+						fs.writeFile "./static/html/#{k}overview.html", _template( v ), ->
+							console.log "#{k} file ready"
+							return
+						return
+				return
+		else
+			console.log "No types to create views."
 		return
 
 	_createKeyOverview: =>
 
 		@emit 'initStatusUpdate', "Starting to parse information into html pages."
-
-		_keytemplatedata = @_parseKeysForTemplate @_templateData.key
-
-		fs.readFile "./views/keyoverview.hbs", { encoding: "utf-8" } ,( error, data ) =>
-			console.log error if error?
-
-			_template = hbs.handlebars.compile data
-
-			fs.writeFile "./static/html/keyoverview.html", _template( _keytemplatedata ), =>
-				console.log "key file ready"
-				@initStatus.initializing = false
-				@emit 'initStatusUpdate', "Finished creating html files."
-				@emit 'initStatusUpdate', "FIN"
-				return
+		_finCreating = =>
+			console.log "key file ready"
+			@initStatus.initializing = false
+			@emit 'initStatusUpdate', "Finished creating html files."
+			@emit 'initStatusUpdate', "FIN"
 			return
+
+		if Object.keys( @_templateData.key.types ).length isnt 0
+			_keytemplatedata = @_parseKeysForTemplate()
+
+			fs.readFile "./views/keyoverview.hbs", { encoding: "utf-8" } ,( error, data ) =>
+				console.log error if error?
+
+				_template = hbs.handlebars.compile data
+
+				fs.writeFile "./static/html/keyoverview.html", _template( _keytemplatedata ), =>
+					_finCreating()
+					return
+				return
+		else
+			exec "cp ./views/keyoverview_empty.html ./static/html/keyoverview.html", ( error, stdout, stderr ) =>
+				console.log error if error?
+				_finCreating()
+				return
 		return
 
 	# Parses the data into a logicless template friendly format (aka calculating sums, avgs and etc.)
@@ -408,7 +441,7 @@ module.exports = class Overview extends eventemitter
 
 		for k, v of @_templateData
 
-			continue if k is "key"
+			continue if k is "key" or v.size.length is 0
 
 			_templateDataParsed[k] = {
 				"types": [],
