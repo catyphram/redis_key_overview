@@ -2,6 +2,8 @@
 
 **Generates and displays an overview of all keys in a redis database.**
 
+[![Build Status](https://travis-ci.org/catyphram/redis_key_overview.svg?branch=master)](https://travis-ci.org/catyphram/redis_key_overview)
+
 ## Key Overview
 
 ![overview of all keys](./imgs/keyoverview.png?raw=true "overview of all keys")
