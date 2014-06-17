@@ -13,17 +13,23 @@ module.exports = ( grunt )->
 				dest: ''
 				ext: '.js'
 			modules:
-			 	expand: true
-			 	cwd: '_src/modules/'
-			 	src: ['**/*.coffee']
-			 	dest: 'modules'
-			 	ext: '.js'
+				expand: true
+				cwd: '_src/modules/'
+				src: ['**/*.coffee']
+				dest: 'modules'
+				ext: '.js'
 			static:
-			 	expand: true
-			 	cwd: '_src_static/'
-			 	src: ['**/*.coffee']
-			 	dest: 'static'
-			 	ext: '.js'
+				expand: true
+				cwd: '_src_static/'
+				src: ['**/*.coffee']
+				dest: 'static'
+				ext: '.js'
+			test:
+				expand: true
+				cwd: '_src/test/'
+				src: ['**/*.coffee']
+				dest: 'test'
+				ext: '.js'
 
 	grunt.loadNpmTasks('grunt-contrib-coffee')
 	grunt.loadNpmTasks('grunt-contrib-watch')
