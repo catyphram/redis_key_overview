@@ -11,7 +11,7 @@
     describe('Erster Test 2', function() {
       it('Says hello', function(done) {
         'hello'.should.be.equal('hello');
-        redisClient.set('keys', "*", function(error, data) {
+        redisClient.keys("*", function(error, data) {
           console.log(error, data);
           done();
         });
