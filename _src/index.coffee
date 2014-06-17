@@ -5,6 +5,8 @@ hbs = require('hbs')
 ovOptions = require './config.json'
 extend = require 'extend'
 
+# Database not empty, but only HyperLogs, what happens?
+
 _defaults = {
 	"redis": {
 		#"host": undefined,
