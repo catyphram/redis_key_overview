@@ -16,11 +16,13 @@
 
 Installing the module via npm:
 
-	npm install redis_key_overview && cd node_modules/redis_key_overview
+	npm install redis_key_overview  
+	cd node_modules/redis_key_overview
 
 or cloning from github:
 
-	git clone https://github.com/catyphram/redis_key_overview/
+	git clone https://github.com/catyphram/redis_key_overview/  
+	cd redis_key_overview  
 	npm install
 
 	
