@@ -85,9 +85,49 @@
         "zset": "ZSets",
         "list": "Lists"
       };
+      this._escapedCharacters = {
+        'a': {
+          "escapedString": '\a',
+          "unescapedString": 'a',
+          "unescapedHex": 0x61,
+          "escapedHex": 0x07
+        },
+        'b': {
+          "escapedString": '\b',
+          "unescapedString": 'b',
+          "unescapedHex": 0x62,
+          "escapedHex": 0x08
+        },
+        'n': {
+          "escapedString": '\n',
+          "unescapedString": 'n',
+          "unescapedHex": 0x6e,
+          "escapedHex": 0x0a
+        },
+        'r': {
+          "escapedString": '\r',
+          "unescapedString": 'r',
+          "unescapedHex": 0x72,
+          "escapedHex": 0x0d
+        },
+        't': {
+          "escapedString": '\t',
+          "unescapedString": 't',
+          "unescapedHex": 0x74,
+          "escapedHex": 0x09
+        }
+      };
     };
 
     Overview.prototype.initInitVars = function() {
+      this._parseCSV = {
+        remainingBytes: [],
+        nextCharCouldBeEscaped: false,
+        value: false,
+        nextCharactersAreUnicode: 0,
+        firstPartOfHex: ""
+      };
+      this._totalKeyAmount = 0;
       this._multiKeys = {
         "key": [],
         "hash": [],
@@ -96,7 +136,6 @@
         "zset": [],
         "list": []
       };
-      this._remainingBytes = [];
       this.initStatus = {
         "status": [],
         "initializing": false,
@@ -106,6 +145,7 @@
         }
       };
       this._timesRequested = 0;
+      this._keysDeleted = 0;
       this.lastKeySizeAndTypeRequest = true;
       this._templateData = {
         "key": {
@@ -163,17 +203,29 @@
           _this.initStatus.initializing = true;
           _this.emit('initStatusUpdate', 'INITIALIZING');
           _this.emit('initStatusUpdate', "Getting all keys from the redis server and save them into a local file.");
-          exec("echo \"keys *\" | redis-cli --raw | sed '/(*\.*)/d' | sed -e /^\s*$/d > " + _this.options.keyfilename, function(error, stdout, stderr) {
+          exec("echo \"keys *\" | redis-cli --csv > " + _this.options.keyfilename, function(error, stdout, stderr) {
             if (error != null) {
               console.log('exec error: ' + error);
             }
             _this.emit('initStatusUpdate', "Finished writing keys into local file.");
-            exec("cat " + _this.options.keyfilename + " | wc -l", function(error2, stdout2, stderr2) {
+            exec('cat keys.csv | grep -o "\\",\\"" | wc -l', function(error2, stdout2, stderr2) {
               if (error2 != null) {
-                console.log('exec error: ' + error2);
+                console.log('exec2 error:' + error2);
               }
-              _this.totalKeyAmount = parseInt(stdout2);
-              _this.generateViews();
+              _this._totalKeyAmount = parseInt(stdout2) + 1;
+              if (_this._totalKeyAmount === 1) {
+                exec(" cat keys.csv | wc -c", function(error3, stdout3, stderr3) {
+                  if (error3 != null) {
+                    console.log('exec3 error: ' + error3);
+                  }
+                  if (parseInt(stdout3) === 1) {
+                    _this._totalKeyAmount = 0;
+                  }
+                  _this.generateViews();
+                });
+              } else {
+                _this.generateViews();
+              }
             });
           });
           res.send();
@@ -181,12 +233,20 @@
       })(this));
       this.express.get('/init', (function(_this) {
         return function(req, res) {
-          res.sendfile("./static/html/init.html");
+          res.sendfile("./static/html/init.html", function(error) {
+            if (error != null) {
+              res.send(500, "Fatal Error: Init file is missing!");
+            }
+          });
         };
       })(this));
       this.express.get('/', (function(_this) {
         return function(req, res) {
-          res.sendfile("./static/html/keyoverview.html");
+          res.sendfile("./static/html/keyoverview.html", function(error) {
+            if (error != null) {
+              res.redirect(307, "/init");
+            }
+          });
         };
       })(this));
       this.express.get('/initstatus', (function(_this) {
@@ -277,22 +337,66 @@
       })(this));
       _keystream.on('readable', (function(_this) {
         return function() {
-          var _byte, _byteBuffer, _key;
+          var _byte, _byteBuffer, _foundEscapedChar, _k, _key, _realByte, _realByteString, _ref, _v;
+          if (!_this._continueReading) {
+            return;
+          }
           while (true) {
             _byteBuffer = _keystream.read(1);
             if (!_byteBuffer) {
               break;
             }
             _byte = _byteBuffer[0];
-            if (_byte === 0x0A) {
-              _key = sd.write(new Buffer(_this._remainingBytes));
-              _this._remainingBytes = [];
-              _this._packKeys(_key, false);
-              if (!_this._continueReading) {
-                break;
+            if (_this._parseCSV.value) {
+              if (_this._parseCSV.nextCharCouldBeEscaped) {
+                _this._parseCSV.nextCharCouldBeEscaped = false;
+                if (_byte === 0x5C || _byte === 0x22) {
+                  _this._parseCSV.remainingBytes.push(_byte);
+                } else {
+                  if (_byte === 0x78) {
+                    _this._parseCSV.nextCharactersAreUnicode = 2;
+                  } else {
+                    _foundEscapedChar = false;
+                    _ref = _this._escapedCharacters;
+                    for (_k in _ref) {
+                      _v = _ref[_k];
+                      if (_v.unescapedHex === _byte) {
+                        _foundEscapedChar = true;
+                        _this._parseCSV.remainingBytes.push(_v.escapedHex);
+                        break;
+                      }
+                    }
+                    if (!_foundEscapedChar) {
+                      console.log("Unknown Escaped Character: " + _byte);
+                    }
+                  }
+                }
+              } else if (_this._parseCSV.nextCharactersAreUnicode > 0) {
+                --_this._parseCSV.nextCharactersAreUnicode;
+                if (_this._parseCSV.nextCharactersAreUnicode === 1) {
+                  _this._parseCSV.firstPartOfHex = sd.write(_byteBuffer);
+                } else {
+                  _realByteString = _this._parseCSV.firstPartOfHex + sd.write(_byteBuffer);
+                  _realByte = parseInt(_realByteString, 16);
+                  _this._parseCSV.remainingBytes.push(_realByte);
+                }
+              } else if (_byte === 0x5C) {
+                _this._parseCSV.nextCharCouldBeEscaped = true;
+              } else if (_byte === 0x22) {
+                _key = sd.write(new Buffer(_this._parseCSV.remainingBytes));
+                _this._parseCSV.remainingBytes = [];
+                _this._parseCSV.value = false;
+                _this._packKeys(_key, false);
+                if (!_this._continueReading) {
+                  break;
+                }
+              } else {
+                _this._parseCSV.remainingBytes.push(_byte);
               }
             } else {
-              _this._remainingBytes.push(_byte);
+              if (_byte === 0x22) {
+                _this._parseCSV.value = true;
+              }
             }
           }
         };
@@ -319,7 +423,7 @@
     Overview.prototype._getKeySizeAndType = function(keys, last) {
       var _collection, _commands, _i, _key, _len;
       if (last) {
-        if (this.totalKeyAmount <= this._timesRequested * this.options.multiLength) {
+        if (this._totalKeyAmount <= this._timesRequested * this.options.multiLength) {
           this.lastKeySizeAndTypeRequest = false;
           this._timesRequested = 0;
           this._diffKeysAndSummarize(null, true);
@@ -338,7 +442,7 @@
         return function(err, content) {
           var _index, _j, _keysRequested, _ref;
           _keysRequested = (++_this._timesRequested - 1) * _this.options.multiLength + keys.length;
-          _this.emit('initStatusPercentUpdate', Math.floor((_keysRequested / _this.totalKeyAmount) * 100));
+          _this.emit('initStatusPercentUpdate', Math.floor((_keysRequested / _this._totalKeyAmount) * 100));
           if (_this._timesRequested === 1) {
             _this.emit('initStatusUpdate', "STATUS");
           }
@@ -346,6 +450,10 @@
             console.log(err);
           }
           for (_index = _j = 0, _ref = content.length - 1; _j <= _ref; _index = _j += 2) {
+            if (content[_index] === "none") {
+              ++_this._keysDeleted;
+              continue;
+            }
             _collection.push({
               "key": _commands[_index][1],
               "type": content[_index],
@@ -353,7 +461,7 @@
             });
           }
           _this._diffKeysAndSummarize(_collection, false);
-          if (_this.lastKeySizeAndTypeRequest && _keysRequested === _this.totalKeyAmount) {
+          if (_this.lastKeySizeAndTypeRequest && _keysRequested === _this._totalKeyAmount) {
             _this.lastKeySizeAndTypeRequest = false;
             _this._timesRequested = 0;
             return _this._diffKeysAndSummarize(null, true);
@@ -436,6 +544,9 @@
             console.log(err);
           }
           for (_index = _j = 0, _ref = count.length - 1; 0 <= _ref ? _j <= _ref : _j >= _ref; _index = 0 <= _ref ? ++_j : --_j) {
+            if (count[_index] instanceof Error) {
+              ++_this._keysDeleted;
+            }
             _collection.push({
               "key": keys[_index].key,
               "membercount": count[_index],
@@ -520,7 +631,7 @@
           encoding: "utf-8"
         }, (function(_this) {
           return function(error, data) {
-            var k, v, _fn, _ref1, _template;
+            var k, v, _fin, _fn, _last, _ref1, _template;
             if (error != null) {
               console.log(error);
             }
@@ -528,12 +639,22 @@
             _ref1 = _this._templateDataParsed;
             _fn = function(k) {
               fs.writeFile("./static/html/" + k + "overview.html", _template(v), function() {
+                if (_last === k && _fin) {
+                  _this.emit('initStatusUpdate', "Finished creating html files.");
+                  if (_this._keysDeleted > 0) {
+                    _this.emit('initStatusUpdate', "" + _this._keysDeleted + " Keys were deleted / ignored during the generation!");
+                  }
+                  _this.emit('initStatusUpdate', "FIN");
+                }
                 console.log("" + k + " file ready");
               });
             };
             for (k in _ref1) {
               v = _ref1[k];
+              _fin = false;
+              _last = k;
               _fn(k);
+              _fin = true;
             }
           };
         })(this));
@@ -549,8 +670,6 @@
         return function() {
           console.log("key file ready");
           _this.initStatus.initializing = false;
-          _this.emit('initStatusUpdate', "Finished creating html files.");
-          _this.emit('initStatusUpdate', "FIN");
         };
       })(this);
       if (Object.keys(this._templateData.key.types).length !== 0) {

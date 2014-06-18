@@ -1,5 +1,5 @@
 (function() {
-  var app, bodyparser, express, extend, hbs, ov, ovOptions, overview, redis, rediscli, _defaults;
+  var app, bodyparser, e, express, extend, hbs, ov, ovOptions, overview, redis, rediscli, _defaults;
 
   express = require('express');
 
@@ -9,7 +9,12 @@
 
   hbs = require('hbs');
 
-  ovOptions = require('./config.json');
+  try {
+    ovOptions = require('./config.json');
+  } catch (_error) {
+    e = _error;
+    console.log("No config file");
+  }
 
   extend = require('extend');
 
@@ -19,7 +24,7 @@
       "port": 3000
     },
     "keyoverview": {
-      "keyfilename": "keys.txt",
+      "keyfilename": "keys.csv",
       "multiLength": 1000,
       "topcount": 50
     }
@@ -57,5 +62,9 @@
   ov = new overview(app, rediscli, _defaults.keyoverview);
 
   app.listen(_defaults.server.port);
+
+  console.log("Started server");
+
+  console.log("Please open http://localhost:3000/init");
 
 }).call(this);

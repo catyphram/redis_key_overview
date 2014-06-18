@@ -1,6 +1,6 @@
 node_modules/
 .DS_Store
-keys.txt
+keys.csv
 static/html/*
 !static/html/init.html
 config.json

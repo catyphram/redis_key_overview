@@ -36,17 +36,37 @@ module.exports = class Overview extends eventemitter
 				@initStatus.percent.percent = percent
 			return
 
+		# Commands for the lenght / member count
 		@_memberCountCommands = { "hash": "hlen", "string": "strlen", "set": "scard", "zset": "zcard", "list": "llen" }
+		# Plurals
 		@_typePlurals = { "hash": "Hashes", "string": "Strings", "set": "Sets", "zset": "ZSets", "list": "Lists" }
+		# Characters that are escaped in the csv file
+		# [ 'a', 'b', 'n', 'r', 't' ]
+		@_escapedCharacters = {
+			'a': { "escapedString": '\a', "unescapedString": 'a', "unescapedHex": 0x61, "escapedHex": 0x07 }
+			'b': { "escapedString": '\b', "unescapedString": 'b', "unescapedHex": 0x62, "escapedHex": 0x08 }
+			'n': { "escapedString": '\n', "unescapedString": 'n', "unescapedHex": 0x6e, "escapedHex": 0x0a }
+			'r': { "escapedString": '\r', "unescapedString": 'r', "unescapedHex": 0x72, "escapedHex": 0x0d }
+			't': { "escapedString": '\t', "unescapedString": 't', "unescapedHex": 0x74, "escapedHex": 0x09 }
+		}
 		
 		return
 
+	# Reinitialize variables
 	initInitVars: =>
 
+		@_parseCSV = {
+			remainingBytes: [],
+			nextCharCouldBeEscaped: false,
+			value: false,
+			nextCharactersAreUnicode: 0,
+			firstPartOfHex: ""
+		}
+		@_totalKeyAmount = 0
 		@_multiKeys = { "key": [], "hash": [], "string": [], "set": [], "zset": [], "list": [] }
-		@_remainingBytes = []
 		@initStatus = { "status": [], "initializing": false, "percent": { "new": true, "percent": 0 } }
 		@_timesRequested = 0
+		@_keysDeleted = 0
 		@lastKeySizeAndTypeRequest = true
 		@_templateData = {
 			"key": { types: {}, totalamount: 0, totalsize: 0 },
@@ -75,16 +95,25 @@ module.exports = class Overview extends eventemitter
 			@emit 'initStatusUpdate', "Getting all keys from the redis server and save them into a local file."
 			
 			# Writing all keys into local file
-			exec "echo \"keys *\" | redis-cli --raw | sed '/(*\.*)/d' | sed -e /^\s*$/d > #{@options.keyfilename}", ( error, stdout, stderr ) =>
+			exec "echo \"keys *\" | redis-cli --csv > #{@options.keyfilename}", ( error, stdout, stderr ) =>
 				if error?
 					console.log 'exec error: ' + error
 				@emit 'initStatusUpdate', "Finished writing keys into local file."
-				# Getting number of keys
-				exec "cat #{@options.keyfilename} | wc -l", ( error2, stdout2, stderr2 ) =>
+				exec 'cat keys.csv | grep -o "\\",\\"" | wc -l', ( error2, stdout2, stderr2 ) =>
 					if error2?
-						console.log 'exec error: ' + error2
-					@totalKeyAmount = parseInt( stdout2 )
-					@generateViews()
+						console.log 'exec2 error:' + error2
+					@_totalKeyAmount = parseInt( stdout2 ) + 1
+					if @_totalKeyAmount is 1
+						# either empty or only one entry
+						exec " cat keys.csv | wc -c", ( error3, stdout3, stderr3 ) =>
+							console.log 'exec3 error: ' + error3 if error3?
+							# only the "\n", so empty database
+							if parseInt( stdout3 ) is 1
+								@_totalKeyAmount = 0
+							@generateViews()
+							return
+					else
+						@generateViews()
 					return
 				return
 			res.send()
@@ -93,12 +122,19 @@ module.exports = class Overview extends eventemitter
 		# Sends page for initializing
 		@express.get '/init', ( req, res ) =>
 
-			res.sendfile "./static/html/init.html"
+			res.sendfile "./static/html/init.html", ( error ) ->
+				if error?
+					res.send 500, "Fatal Error: Init file is missing!"
+				return
 			return
 
+		# Overview of all keys / types
 		@express.get '/', ( req, res ) =>
 
-			res.sendfile "./static/html/keyoverview.html"
+			res.sendfile "./static/html/keyoverview.html", ( error ) ->
+				if error?
+					res.redirect 307, "/init"
+				return
 			return
 
 		# Send Status if available
@@ -195,6 +231,9 @@ module.exports = class Overview extends eventemitter
 
 		_keystream.on 'readable', =>
 
+			if not @_continueReading
+				return
+
 			# Read bytes till end of a row (complete key) and then pass the key to the next function
 			loop
 				_byteBuffer = _keystream.read(1)
@@ -202,16 +241,64 @@ module.exports = class Overview extends eventemitter
 					#stop reading
 					break
 				_byte = _byteBuffer[0]
-				# new line
-				if _byte is 0x0A
-					_key = sd.write new Buffer( @_remainingBytes )
-					@_remainingBytes = []
-					@_packKeys _key, false
-					# Enough keys for multi?
-					if not @_continueReading
-						break
+
+				# We are currently reading the key
+				if @_parseCSV.value
+					# previous char was "\"
+					if @_parseCSV.nextCharCouldBeEscaped
+						@_parseCSV.nextCharCouldBeEscaped = false
+						# only characters which are escaped are '"' and '/'
+						if _byte is 0x5C or _byte is 0x22
+							@_parseCSV.remainingBytes.push _byte
+						else
+							# character is not escaped
+							# character is either something like "\n" or "\xcf" (unicode)
+
+							# character is 'x', so unicode ( next two bytes ) will follow
+							if _byte is 0x78
+								@_parseCSV.nextCharactersAreUnicode = 2
+							else
+								# or escaped, just push
+								_foundEscapedChar = false
+								for _k, _v of @_escapedCharacters
+									if _v.unescapedHex is _byte
+										_foundEscapedChar = true
+										@_parseCSV.remainingBytes.push _v.escapedHex
+										break
+								console.log "Unknown Escaped Character: " + _byte if not _foundEscapedChar
+
+					# currently reading unicode chars
+					# parse each two chars of a character
+					else if @_parseCSV.nextCharactersAreUnicode > 0
+						--@_parseCSV.nextCharactersAreUnicode
+						# first of two hex
+						if @_parseCSV.nextCharactersAreUnicode is 1
+							@_parseCSV.firstPartOfHex = sd.write( _byteBuffer )
+						# concat both hex
+						else
+							_realByteString = @_parseCSV.firstPartOfHex + sd.write( _byteBuffer )
+							_realByte = parseInt _realByteString, 16
+							@_parseCSV.remainingBytes.push _realByte
+						
+					# character is "\", next char may be escaped
+					else if _byte is 0x5C
+						@_parseCSV.nextCharCouldBeEscaped = true
+					# character is '"', end of key
+					else if _byte is 0x22
+						_key = sd.write new Buffer( @_parseCSV.remainingBytes )
+						@_parseCSV.remainingBytes = []
+						@_parseCSV.value = false
+						@_packKeys _key, false
+						# Enough keys for multi?
+						if not @_continueReading
+							break
+					else
+						@_parseCSV.remainingBytes.push _byte
 				else
-					@_remainingBytes.push _byte
+					# start of key
+					if _byte is 0x22
+						@_parseCSV.value = true
+					# ignore if "," and the \n / \r at the end
 			return
 
 		return
@@ -219,7 +306,6 @@ module.exports = class Overview extends eventemitter
 	_packKeys: ( key, last ) =>
 
 		# last key?
-		
 		if last
 			# Pass the remaining keys
 			@_getKeySizeAndType @_multiKeys.key, false if @_multiKeys.key.length > 0
@@ -238,12 +324,14 @@ module.exports = class Overview extends eventemitter
 	_getKeySizeAndType: ( keys, last ) =>
 
 		if last
-			if @totalKeyAmount <= @_timesRequested * @options.multiLength
+			# last keys and no outstanding requests, finished therefore
+			if @_totalKeyAmount <= @_timesRequested * @options.multiLength
 				# finished requesting
 				@lastKeySizeAndTypeRequest = false
 				@_timesRequested = 0
 				@_diffKeysAndSummarize null, true
 			else
+				# or wait for last request to finish
 				@lastKeySizeAndTypeRequest = true
 			return
 		_commands = []
@@ -253,17 +341,22 @@ module.exports = class Overview extends eventemitter
 
 		@redis.multi( _commands ).exec ( err, content ) =>
 			_keysRequested = ( ++@_timesRequested - 1 ) * @options.multiLength + keys.length
-			@emit 'initStatusPercentUpdate', Math.floor( ( _keysRequested / @totalKeyAmount ) * 100 )
+			@emit 'initStatusPercentUpdate', Math.floor( ( _keysRequested / @_totalKeyAmount ) * 100 )
 			# First time Status, so the client can switch to showing the percent
 			@emit 'initStatusUpdate', "STATUS" if @_timesRequested is 1
 			if err?
 				console.log err
 			for _index in [0..content.length-1] by 2
+				# Key deleted? Error will be responsed / Type is none
+				if content[_index] is "none"
+					++@_keysDeleted
+					continue
 				_collection.push( { "key": _commands[_index][1], "type": content[_index], "size": @_catSize( content[_index+1] ) } )
 
 			@_diffKeysAndSummarize _collection, false
 
-			if @lastKeySizeAndTypeRequest and _keysRequested is @totalKeyAmount
+			# last request finished / last already called
+			if @lastKeySizeAndTypeRequest and _keysRequested is @_totalKeyAmount
 				@lastKeySizeAndTypeRequest = false
 				@_timesRequested = 0
 				@_diffKeysAndSummarize null, true
@@ -274,7 +367,6 @@ module.exports = class Overview extends eventemitter
 	_catSize: ( data ) ->
 
 		term = "serializedlength"
-
 		startindex = data.indexOf term
 		startindex += term.length+1
 
@@ -335,6 +427,9 @@ module.exports = class Overview extends eventemitter
 			--@memberRequests.remaining
 			console.log err if err?
 			for _index in [0..count.length-1]
+				# key deleted? / Error thrown
+				if count[_index] instanceof Error
+					++@_keysDeleted
 				_collection.push { "key": keys[_index].key, "membercount": count[_index], "size": keys[_index].size }
 
 			@_getTopMembers _collection, keys[0].type, false
@@ -395,11 +490,19 @@ module.exports = class Overview extends eventemitter
 				_template = hbs.handlebars.compile data
 
 				for k, v of @_templateDataParsed
-					do ( k ) ->
-						fs.writeFile "./static/html/#{k}overview.html", _template( v ), ->
+					_fin = false
+					_last = k
+					do ( k ) =>
+						fs.writeFile "./static/html/#{k}overview.html", _template( v ), =>
+							if _last is k and _fin
+								@emit 'initStatusUpdate', "Finished creating html files."
+								if @_keysDeleted > 0
+									@emit 'initStatusUpdate', "#{@_keysDeleted} Keys were deleted / ignored during the generation!"
+								@emit 'initStatusUpdate', "FIN"
 							console.log "#{k} file ready"
 							return
 						return
+					_fin = true
 				return
 		else
 			console.log "No types to create views."
@@ -411,8 +514,6 @@ module.exports = class Overview extends eventemitter
 		_finCreating = =>
 			console.log "key file ready"
 			@initStatus.initializing = false
-			@emit 'initStatusUpdate', "Finished creating html files."
-			@emit 'initStatusUpdate', "FIN"
 			return
 
 		if Object.keys( @_templateData.key.types ).length isnt 0

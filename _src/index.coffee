@@ -2,10 +2,12 @@ express = require( 'express' )
 bodyparser = require('body-parser')
 redis = require( 'redis' )
 hbs = require('hbs')
-ovOptions = require './config.json'
-extend = require 'extend'
+try
+	ovOptions = require './config.json'
+catch e
+	console.log "No config file"
 
-# Database not empty, but only HyperLogs, what happens?
+extend = require 'extend'
 
 _defaults = {
 	"redis": {
@@ -16,7 +18,7 @@ _defaults = {
 		"port": 3000
 	},
 	"keyoverview": {
-		"keyfilename": "keys.txt",
+		"keyfilename": "keys.csv",
 		"multiLength": 1000,
 		"topcount": 50
 	}
@@ -58,3 +60,6 @@ ov = new overview( app, rediscli, _defaults.keyoverview )
 
 
 app.listen( _defaults.server.port ) 
+
+console.log "Started server"
+console.log "Please open http://localhost:3000/init"
