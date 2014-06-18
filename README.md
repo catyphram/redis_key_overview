@@ -48,7 +48,9 @@ Node will now start a web service at port 3000.
 
 ## Config.json
 
-You can override the default options in the config.json file. The config.json needs to be the same structure as the default object below:
+You can override the default options in the config.json file.  
+You find an example of the config.json with all option in the project root (`config_sample.json`).  
+The config.json needs to be the same structure as the default object below:
 
 ```
 {
@@ -76,6 +78,7 @@ You can override the default options in the config.json file. The config.json ne
 	* keyfilename: name of the local file created during initialization with all redis keys
 	* multilength: Number of Commands sent within a multi (maybe an other value will increase the performance)
 	* topcount: Number of rows listed in the ordered detail views
+
 
 
 ## keyoverview.js
